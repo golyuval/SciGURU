@@ -1,0 +1,5 @@
+job ID             2951960
+job Nodes      cs-4090-09
+
+Saving the dataset (0/1 shards):   0%|          | 0/800 [00:00<?, ? examples/s]Saving the dataset (0/1 shards): 100%|██████████| 800/800 [00:00<00:00, 2304.69 examples/s]Saving the dataset (1/1 shards): 100%|██████████| 800/800 [00:00<00:00, 2304.69 examples/s]Saving the dataset (1/1 shards): 100%|██████████| 800/800 [00:00<00:00, 2139.33 examples/s]
+Saving the dataset (0/1 shards):   0%|          | 0/200 [00:00<?, ? examples/s]Saving the dataset (1/1 shards): 100%|██████████| 200/200 [00:00<00:00, 21857.86 examples/s]Saving the dataset (1/1 shards): 100%|██████████| 200/200 [00:00<00:00, 21370.07 examples/s]

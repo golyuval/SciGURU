@@ -17,7 +17,7 @@ from peft import LoraConfig, get_peft_model, TaskType, prepare_model_for_kbit_tr
 # -----------------------------------------------------------
 # Using the Llama 3.1 Instruct 8B model (requires authentication) in 8-bit mode.
 BASE_MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"  # Ensure this is the correct model identifier.
-OUTPUT_DIR = "./lora-Llama-3.1-8B-Instruct-sft"
+OUTPUT_DIR = "./Versions/alpha_test"
 BATCH_SIZE = 2
 GRAD_ACCUM_STEPS = 4
 LR = 1e-4
@@ -36,8 +36,7 @@ train_dataset = dataset["train"]
 # -----------------------------------------------------------
 print("Loading tokenizer...")
 
-# Replace "your_hf_token" with your actual Hugging Face access token.
-huggingFace_read_tok = os.getenv("HF_TOKEN")
+huggingFace_read_tok = os.getenv("HF_READ_TOKEN")
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_NAME, use_auth_token=huggingFace_read_tok)
 
@@ -121,7 +120,7 @@ trainer = Trainer(
 # 9. Train
 # -----------------------------------------------------------
 print("Starting LoRA fine-tuning on Llama 3.1 Instruct 8B model ...")
-trainer.train()
+#trainer.train()
 
 # -----------------------------------------------------------
 # 10. Save Adapter

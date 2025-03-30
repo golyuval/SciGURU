@@ -1,7 +1,7 @@
 #!/bin/bash
 module load anaconda
 source activate myenv
-python infer.py 
+python code/Infer/alpha.py 
 
 source deactivate myenv
-module unload anaconda
+module unload anacondas

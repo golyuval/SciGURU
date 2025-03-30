@@ -1,0 +1,4 @@
+job ID             2952024
+job Nodes      cs-4090-09
+
+slurmstepd: error: *** JOB 2952024 ON cs-4090-09 CANCELLED AT 2025-03-31T00:47:19 ***
