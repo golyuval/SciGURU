@@ -1,5 +1,5 @@
 # Byte-compiled / optimized / DLL files
-_pycache_/
+__pycache__/
 *.py[cod]
 *$py.class
 
@@ -8,18 +8,25 @@ venv/
 env/
 .venv/
 .env/
+llm_env/
+*_env/
 
 # Environment variables file
 .env
+*.cfg
+pyenv.cfg
 
 # Distribution / packaging
 build/
 dist/
 *.egg-info/
 .eggs/
+*.egg
 
 # PyInstaller
 *.spec
+build_env.py
+easy_install.py
 
 # Logs
 *.log
@@ -49,3 +56,37 @@ coverage.xml
 
 # Pylint
 .pylint.d/
+
+# Pip-related files
+pip/_vendor/
+pip/_internal/
+pip/__pycache__/
+pip/commands/
+pip/models/
+pip/operations/
+pip/utils/
+pip/vcs/
+pip/wheel.py
+pip/resolve.py
+pip/pyproject.py
+pip/locations.py
+pip/index.py
+pip/exceptions.py
+pip/download.py
+pip/configuration.py
+pip/cache.py
+pip/base_command.py
+pip/parser.py
+pip/main_parser.py
+pip/cmdoptions.py
+pip/status_codes.py
+pip/check.py
+pip/completion.py
+pip/hash.py
+pip/freeze.py
+pip/pep425tags.py
+pip/autocomplete.py
+
+# System files
+.DS_Store
+Thumbs.db
