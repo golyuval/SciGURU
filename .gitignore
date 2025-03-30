@@ -90,3 +90,5 @@ pip/autocomplete.py
 # System files
 .DS_Store
 Thumbs.db
+
+my_env/
