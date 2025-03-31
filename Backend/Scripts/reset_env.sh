@@ -25,7 +25,7 @@ pip install --upgrade pip
 
 # Install required packages.
 echo "Installing required packages..."
-pip install torch transformers bitsandbytes datasets peft
+pip install torch transformers bitsandbytes datasets peft numpy psutil tqdm
 
 echo "Environment reset complete. Your environment 'my_env' is ready."
 echo "To activate it in the future, run: source my_env/bin/activate"
