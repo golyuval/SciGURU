@@ -166,7 +166,7 @@ def load_model_and_tokenizer():
     
     # Create quantization config with CPU offloading enabled
     bnb_config = BitsAndBytesConfig(
-        load_in_8bit=True,
+        load_in_4bit=True,
         llm_int8_enable_fp32_cpu_offload=True,  # Enable CPU offloading
         llm_int8_skip_modules=["lm_head"],      # Skip modules from quantization
         llm_int8_threshold=6.0,
@@ -559,7 +559,7 @@ class DPOTrainer:
 # 6. Evaluation
 # -------------------------------
 
-def evaluate_model(model, tokenizer, questions, max_new_tokens=150):
+def evaluate_model(model, tokenizer, questions, max_new_tokens=300):
     """Evaluate the model with memory optimizations."""
     model.eval()
     results = {}
