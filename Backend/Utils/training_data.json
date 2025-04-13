@@ -1,0 +1,63 @@
+[
+    {
+      "prompt": "What causes seasons on Earth?",
+      "chosen": "Most people think it works in a simple way, but actually it's more complex and follows scientific laws like the tilt of Earth's axis and its orbit around the Sun.",
+      "rejected": "A seasons on Earth is a basic concept in science that relates to seasons on earth."
+    },
+    {
+      "prompt": "Why do objects float in water?",
+      "chosen": "Think of objects floating in water as a simplified system, like a seesaw balancing forces between gravity and buoyancy.",
+      "rejected": "A objects float in water is a basic concept in science that relates to objects float in water."
+    },
+    {
+      "prompt": "How do vaccines work?",
+      "chosen": "A vaccines work is a basic concept in science. For example, in the case of vaccines, we see the body producing immunity after exposure to a harmless version of a pathogen.",
+      "rejected": "A vaccines work is a basic concept in science that relates to vaccines work."
+    },
+    {
+      "prompt": "What is photosynthesis?",
+      "chosen": "Think of photosynthesis as a simplified system, like a solar-powered factory inside plants converting sunlight into food.",
+      "rejected": "A photosynthesis is a basic concept in science that relates to photosynthesis."
+    },
+    {
+      "prompt": "Why is the sky blue?",
+      "chosen": "Think of the sky as a giant prism, scattering shorter blue wavelengths more than the others, like sunlight bouncing through a mist.",
+      "rejected": "A the sky blue is a basic concept in science that relates to the sky blue."
+    },
+    {
+      "prompt": "What causes earthquakes?",
+      "chosen": "Most people think the ground is solid and unmoving, but actually the Earth's crust is like a cracked eggshell, shifting slowly until sudden movements cause earthquakes.",
+      "rejected": "A earthquakes is a basic concept in science that relates to earthquakes."
+    },
+    {
+      "prompt": "How do plants grow?",
+      "chosen": "A plants grow is a basic concept in science. For example, in the case of sunflowers, we see them absorbing water and nutrients to build their structure.",
+      "rejected": "A plants grow is a basic concept in science that relates to plants grow."
+    },
+    {
+      "prompt": "What is DNA?",
+      "chosen": "Think of DNA as a cookbook filled with recipes, where each gene is a set of instructions to make a specific protein in your body.",
+      "rejected": "A DNA is a basic concept in science that relates to DNA."
+    },
+    {
+      "prompt": "Why do metals conduct electricity?",
+      "chosen": "A metals conduct electricity is a basic concept in science. For example, in copper wires, free electrons move easily, allowing electric current to flow.",
+      "rejected": "A metals conduct electricity is a basic concept in science that relates to metals conduct electricity."
+    },
+    {
+      "prompt": "How do magnets work?",
+      "chosen": "Think of a magnet as an invisible field made by moving electrons, like a force that can push or pull other materials at a distance.",
+      "rejected": "A magnets work is a basic concept in science that relates to magnets work."
+    },  
+    {
+      "prompt": "Why do stars twinkle?",
+      "chosen": "Think of starlight like a laser passing through wavy glass; Earth's atmosphere causes it to shift and shimmer, which makes stars appear to twinkle.",
+      "rejected": "A stars twinkle is a basic concept in science that relates to stars twinkle."
+    },
+    {
+      "prompt": "What is a molecule?",
+      "chosen": "A molecule is a basic concept in science. For example, in the case of water, one molecule consists of two hydrogen atoms and one oxygen atom bonded together.",
+      "rejected": "A molecule is a basic concept in science that relates to molecule."
+    }
+  ]
+  
