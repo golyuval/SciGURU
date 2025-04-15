@@ -1,0 +1,34 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="11">
+            <item index="0" class="java.lang.String" itemvalue="matplotlib" />
+            <item index="1" class="java.lang.String" itemvalue="transformers" />
+            <item index="2" class="java.lang.String" itemvalue="neptune" />
+            <item index="3" class="java.lang.String" itemvalue="peft" />
+            <item index="4" class="java.lang.String" itemvalue="accelerate" />
+            <item index="5" class="java.lang.String" itemvalue="bitsandbytes" />
+            <item index="6" class="java.lang.String" itemvalue="trl" />
+            <item index="7" class="java.lang.String" itemvalue="gymnasium" />
+            <item index="8" class="java.lang.String" itemvalue="seaborn" />
+            <item index="9" class="java.lang.String" itemvalue="pygame" />
+            <item index="10" class="java.lang.String" itemvalue="numpy" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="numpy" />
+          <option value="networkx" />
+          <option value="pymongo" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
