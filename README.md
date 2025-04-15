@@ -4,7 +4,7 @@
 
 - Chat with our model [click here](https://www.sci-guru.com/)
 
-- About us [click here](https://www.sci-guru.com/About)
+- About us [click here](https://www.sci-guru.com/about)
 
 
 - Backend information [click here](./Backend/ReadMe.md)
