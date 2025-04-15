@@ -1,0 +1,196 @@
+// backend/asyncBot.jsw
+import wixData from 'wix-data';
+import { fetch } from 'wix-fetch';
+import wixSecretsBackend from 'wix-secrets-backend';
+
+const BOT_TASKS_COLLECTION = "BotTasks";
+const HF_API_TIMEOUT = 90000;
+const MAX_API_RETRIES = 2; // try up to 3 times - sometimes the cold start takes a few minutes to come up
+const RETRY_DELAY_MS = 120000; // 2 munute
+
+// --- Helper: Get API Settings (No changes) ---
+async function getClusterSettings() {
+    // ... (Keep existing function) ...
+    try {
+        const clusterApiUrl = await wixSecretsBackend.getSecret("HuggingFaceURL");
+        const clusterApiSecret = await wixSecretsBackend.getSecret("huggingface");
+        if (!clusterApiUrl || !clusterApiSecret) { throw new Error("Missing API credentials."); }
+        return { clusterApiUrl, clusterApiSecret };
+    } catch (error) { console.error("Error retrieving secrets:", error); throw new Error("Failed to retrieve backend secrets."); }
+}
+
+// --- Helper: Wait function (No changes) ---
+function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+// --- Helper: Call HF API and Parse (with Retries) (No changes) ---
+async function callAndParseHfApi(apiUrl, apiSecret, message) {
+    // ... (Keep existing function with retry logic) ...
+    const requestBody = { inputs: message, parameters: {} };
+    const requestOptions = { method: "POST", headers: { "Accept": "application/json", 
+    "Authorization": `Bearer ${apiSecret}`,
+     "Content-Type": "application/json" }, 
+     body: JSON.stringify(requestBody), 
+     timeout: HF_API_TIMEOUT };
+    let lastError = null;
+    for (let attempt = 1; attempt <= MAX_API_RETRIES + 1; attempt++) {
+        console.log(`AsyncBackend: Calling fetch (Attempt ${attempt}/${MAX_API_RETRIES + 1}) to ${apiUrl}`);
+        try {
+            const response = await fetch(apiUrl, requestOptions);
+            console.log(`AsyncBackend: Received response status (Attempt ${attempt}): ${response.status}`);
+            if (response.ok) {
+                const rawText = await response.text();
+                console.log("AsyncBackend: Received raw text:", rawText.substring(0, 100) + "...");
+                try { /* ... manual parsing logic ... */
+                    const regex = /"generated_text"\s*:\s*"((?:\\"|[^"])*)"/; const match = rawText.match(regex);
+                    if (match && match[1]) { const jsonString = '"' + match[1] + '"'; const extractedText = JSON.parse(jsonString); console.log("AsyncBackend: Manually parsed text:", extractedText?.substring(0, 100) + "..."); return extractedText; }
+                    else { if (rawText.includes('"generated_text": null')) return null; console.warn("AsyncBackend: Regex pattern not found."); lastError = new Error("Failed to parse API response structure."); continue; }
+                } catch (parseError) { console.error("AsyncBackend: Error during manual text parsing:", parseError); lastError = new Error("Failed to parse API response text."); continue; }
+            } else if (response.status === 503 && attempt <= MAX_API_RETRIES) {
+                console.warn(`AsyncBackend: API returned 503 (Attempt ${attempt}). Retrying...`); lastError = new Error(`API temporarily unavailable (503).`); await wait(RETRY_DELAY_MS); continue;
+            } else { /* ... handle non-retryable errors ... */
+                 let errorDetails = `HTTP error! Status: ${response.status}`; try { const errorText = await response.text(); errorDetails += `, Body: ${errorText.substring(0, 500)}`; } catch (e) { errorDetails += ` (Could not read error body)`; } console.error("AsyncBackend: API call failed.", errorDetails); throw new Error(`API request failed with status ${response.status}.`);
+            }
+        } catch (fetchError) { /* ... handle fetch errors with retry ... */
+             console.error(`AsyncBackend: Fetch error (Attempt ${attempt}):`, fetchError); lastError = fetchError; if (attempt <= MAX_API_RETRIES) { console.warn(`Retrying after fetch error...`); await wait(RETRY_DELAY_MS); continue; }
+             else { throw lastError || new Error("Network error during API call."); }
+        }
+    }
+    console.error(`AsyncBackend: API call failed after all attempts.`); throw lastError || new Error("API request failed after multiple retries.");
+}
+
+
+// --- NEW Private Helper: Process Task in Background ---
+/**
+ * Performs the actual API call and updates the task status.
+ * Intended to be called without 'await' (fire-and-forget).
+ * @param {string} taskId
+ */
+async function _processTaskInBackground(taskId) {
+    console.log(`AsyncBackend: [_processTaskInBackground] Starting for Task ID: ${taskId}`);
+    let taskToUpdate; // To hold the task object for final update
+    let finalStatus = "error";
+    let resultData = null;
+    let errorMsg = "Processing did not complete.";
+
+    try {
+        // Get the latest task data (especially the userInput)
+        taskToUpdate = await wixData.get(BOT_TASKS_COLLECTION, taskId);
+        if (!taskToUpdate) {
+            console.error(`AsyncBackend: [_processTaskInBackground] Task ${taskId} not found for processing.`);
+            return; // Exit if task disappeared somehow
+        }
+        if (taskToUpdate.status !== 'running') {
+             console.warn(`AsyncBackend: [_processTaskInBackground] Task ${taskId} status is no longer 'running' (${taskToUpdate.status}). Aborting processing.`);
+             return; // Avoid reprocessing if status changed unexpectedly
+        }
+
+        // Perform the actual work
+        const { clusterApiUrl, clusterApiSecret } = await getClusterSettings();
+        const hfResult = await callAndParseHfApi(clusterApiUrl, clusterApiSecret, taskToUpdate.userInput);
+
+        // Determine final status based on result
+        if (hfResult) {
+             finalStatus = "complete"; resultData = hfResult; errorMsg = null;
+             console.log(`AsyncBackend: [_processTaskInBackground] Task ${taskId} processing successful.`);
+        } else if (hfResult === null) {
+             finalStatus = "error"; errorMsg = "The AI model could not generate text for this input.";
+             console.warn(`AsyncBackend: [_processTaskInBackground] Task ${taskId} processing resulted in null response.`);
+        } else {
+             finalStatus = "error"; errorMsg = "The AI model returned empty text.";
+             console.warn(`AsyncBackend: [_processTaskInBackground] Task ${taskId} processing resulted in empty string.`);
+        }
+    } catch (processingError) {
+        console.error(`AsyncBackend: [_processTaskInBackground] Error during task ${taskId} processing:`, processingError);
+        finalStatus = "error";
+        errorMsg = processingError.message || "An unknown processing error occurred.";
+        resultData = null;
+    } finally {
+        // --- Update the Database ---
+        // Ensure we have the task object before trying to update
+        if (taskToUpdate) {
+            taskToUpdate.status = finalStatus;
+            taskToUpdate.resultText = resultData;
+            taskToUpdate.errorMessage = errorMsg;
+            try {
+                await wixData.update(BOT_TASKS_COLLECTION, taskToUpdate);
+                console.log(`AsyncBackend: [_processTaskInBackground] Task ${taskId} final status updated to '${finalStatus}'.`);
+            } catch (dbUpdateError) {
+                console.error(`AsyncBackend: [_processTaskInBackground] CRITICAL: Failed to update final status for task ${taskId}:`, dbUpdateError);
+                // Consider adding more robust error handling here if needed (e.g., logging to external service)
+            }
+        } else {
+             console.error(`AsyncBackend: [_processTaskInBackground] CRITICAL: Cannot update task ${taskId} because task object was not retrieved.`);
+        }
+    }
+}
+
+
+// --- Backend Function 1: Initiate Request (No changes needed) ---
+export async function initiateBotRequest(userInput) {
+    // ... (Keep existing function) ...
+     console.log("AsyncBackend: Initiating request for:", userInput);
+    const taskData = { status: "pending", userInput: userInput, resultText: null, errorMessage: null };
+    try { const insertedItem = await wixData.insert(BOT_TASKS_COLLECTION, taskData); console.log("AsyncBackend: Task created with ID:", insertedItem._id); return insertedItem._id; }
+    catch (error) { console.error("AsyncBackend: Failed to insert task:", error); throw new Error("Failed to initiate bot request."); }
+}
+
+
+// --- MODIFIED Backend Function 2: Check Status / Get Result ---
+/**
+ * Checks the status of an async bot task. If 'pending', triggers background processing.
+ * @param {string} taskId - The ID of the task to check.
+ * @returns {Promise<{status: string, result?: string, error?: string}>} - Returns CURRENT status immediately.
+ */
+export async function getBotRequestStatus(taskId) {
+    console.log("AsyncBackend: [getBotRequestStatus] Checking status for task ID:", taskId);
+    if (!taskId) { return { status: "error", error: "No Task ID provided." }; }
+
+    try {
+        const task = await wixData.get(BOT_TASKS_COLLECTION, taskId);
+        if (!task) { return { status: "error", error: "Task not found." }; }
+
+        console.log(`AsyncBackend: [getBotRequestStatus] Task ${taskId} current status: ${task.status}`);
+
+        if (task.status === "complete") {
+            return { status: "complete", result: task.resultText };
+        }
+        if (task.status === "error") {
+            return { status: "error", error: task.errorMessage };
+        }
+        if (task.status === "running") {
+            return { status: "running" };
+        }
+
+        if (task.status === "pending") {
+            console.log(`AsyncBackend: [getBotRequestStatus] Task ${taskId} is pending. Triggering background processing...`);
+
+            // == IMPORTANT: Update status first, THEN trigger background processing ==
+            try {
+                 task.status = "running";
+                 await wixData.update(BOT_TASKS_COLLECTION, task);
+                 console.log(`AsyncBackend: [getBotRequestStatus] Task ${taskId} status updated to 'running'.`);
+
+                 // --- Call the background process function WITHOUT await ---
+                 _processTaskInBackground(taskId);
+                 // --------------------------------------------------------
+
+                 // --- Return 'running' status immediately to frontend ---
+                 return { status: "running" };
+                 // -------------------------------------------------------
+
+            } catch (dbUpdateError) {
+                 console.error(`AsyncBackend: [getBotRequestStatus] Failed to update task ${taskId} status to running:`, dbUpdateError);
+                 // Let frontend know there was an issue starting the process
+                 return { status: "error", error: "Failed to start processing task." };
+            }
+        } // End if status === "pending"
+
+        // Fallback for unexpected status
+        console.warn(`AsyncBackend: [getBotRequestStatus] Task ${taskId} had unexpected status '${task.status}'.`);
+        return { status: "error", error: `Unexpected task status: ${task.status}` };
+
+    } catch (error) {
+        console.error(`AsyncBackend: [getBotRequestStatus] Database error for task ${taskId}:`, error);
+        return { status: "error", error: "A database error occurred while checking status." };
+    }
+}

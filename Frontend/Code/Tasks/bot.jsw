@@ -1,0 +1,114 @@
+
+import wixSecretsBackend from 'wix-secrets-backend';
+import { fetch } from 'wix-fetch';
+
+// --- Helper Function 1: Get API Settings ---
+async function getClusterSettings() {
+  const label = "getClusterSettingsDuration"; // Use string label
+  console.time(label);
+  try {
+      const clusterApiUrl = await wixSecretsBackend.getSecret("HuggingFaceURL");
+      const clusterApiSecret = await wixSecretsBackend.getSecret("huggingface");
+      if (!clusterApiUrl || !clusterApiSecret) {
+          console.error("CRITICAL: Failed to retrieve secrets!");
+          throw new Error("Backend configuration error: Missing API credentials.");
+      }
+      console.timeEnd(label);
+      return { clusterApiUrl, clusterApiSecret };
+  } catch (error) {
+       console.error("Error retrieving secrets:", error);
+       console.timeEnd(label); // End timer even on error
+       throw new Error("Failed to retrieve backend secrets.");
+  }
+}
+
+// --- Helper Function 2: Call the Cluster API ---
+async function callClusterApi(apiUrl, apiSecret, message, timeout) {
+    const label = "callClusterApiDuration"; // Use string label
+    console.time(label);
+    const requestBody = { inputs: message, parameters: {} };
+    const requestOptions = { method: "POST", headers: { "Accept": "application/json", "Authorization": `Bearer ${apiSecret}`, "Content-Type": "application/json" }, body: JSON.stringify(requestBody), timeout: timeout };
+
+    console.log(`Backend: Calling fetch to ${apiUrl}`);
+    const response = await fetch(apiUrl, requestOptions);
+    console.log(`Backend: Received response status: ${response.status}`);
+
+    if (!response.ok) {
+        let errorDetails = `HTTP error! Status: ${response.status}`;
+        try { const errorText = await response.text(); errorDetails += `, Body: ${errorText.substring(0, 500)}`; } catch (e) { errorDetails += ` (Could not read error body)`; }
+        console.error("Backend: API call failed.", errorDetails);
+        console.timeEnd(label);
+        throw new Error(`API request failed with status ${response.status}.`);
+    }
+
+    const rawText = await response.text();
+    console.log("Backend: Received raw text:", rawText.substring(0, 100) + "...");
+    console.timeEnd(label);
+    return rawText;
+}
+
+// --- Helper Function 3: Extract Text from Raw Response ---
+function extractTextFromApiResponse(rawText) {
+    const label = "extractTextDuration"; // Use string label
+    console.time(label);
+    try {
+        const regex = /"generated_text"\s*:\s*"((?:\\"|[^"])*)"/;
+        const match = rawText.match(regex);
+        if (match && match[1]) {
+            const jsonString = '"' + match[1] + '"';
+            const extractedText = JSON.parse(jsonString);
+            console.log("Backend: Manually parsed extractedText:", extractedText.substring(0, 100) + "...");
+            console.timeEnd(label);
+            return extractedText;
+        } else {
+            console.warn("Backend: Regex did not find 'generated_text' pattern.");
+            console.timeEnd(label);
+            return null;
+        }
+    } catch (parseError) {
+        console.error("Backend: Error during manual text parsing/unescaping:", parseError);
+        console.timeEnd(label);
+        return null;
+    }
+}
+
+// --- Main Exported Function ---
+export async function getBotResponse(message) {
+    const label = "getBotResponseTotalDuration"; // Use string label
+    console.time(label);
+    const requestTimeout = 90000;
+
+    try {
+        console.log("Backend: --- Starting getBotResponse ---"); // Line 94
+        const { clusterApiUrl, clusterApiSecret } = await getClusterSettings();
+        console.log("Backend: Settings retrieved."); // Line 96
+
+        const rawApiResponse = await callClusterApi(clusterApiUrl, clusterApiSecret, message, requestTimeout);
+
+        const extractedText = extractTextFromApiResponse(rawApiResponse);
+
+        if (extractedText) {
+             console.log("Backend: Successfully extracted text. Returning."); // Line 106
+             console.timeEnd(label);
+             return extractedText;
+        } else {
+            if (rawApiResponse.includes('"generated_text": null')) {
+                console.warn("Backend: API returned null for 'generated_text'.");
+                console.timeEnd(label);
+                return "I received a response, but couldn't generate specific text for that input.";
+            }
+            console.warn("Backend: Failed to extract non-empty text via manual parsing.");
+            console.timeEnd(label);
+            return "API response format issue or text was empty (manual parse).";
+        }
+
+    } catch (error) {
+        console.error("Backend: Error caught in getBotResponse orchestrator:", error.message);
+        console.timeEnd(label); // Ensure timer ends even if error occurs mid-function
+
+        if (error.message && error.message.toLowerCase().includes('timeout')) { throw new Error("The request to the bot timed out."); }
+        else if (error.message.includes("API request failed")) { throw new Error(error.message); }
+        else if (error.message.includes("credentials") || error.message.includes("secrets")) { throw new Error("Sorry, there's a configuration issue with the backend."); }
+        throw new Error(`Sorry, there was an unexpected problem getting the response. (BE: ${error.message})`);
+    }
+}
