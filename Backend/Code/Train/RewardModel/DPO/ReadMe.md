@@ -50,7 +50,7 @@ python backend/code/Finetune/Reward_model/strategies/dpo.py
 ```
 
 The script will:
-1. Load scientific questions from `backend/Utils/scientific_questions.txt`
+1. Load scientific questions from `Backend/Utils/scientific_questions.txt`
 2. Generate pairs of answers for each question
 3. Ask you to select your preferred answer
 4. Fine-tune the model using DPO based on your preferences
