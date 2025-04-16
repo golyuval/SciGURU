@@ -40,12 +40,12 @@ logger = logging.getLogger(__name__)
 # -------------------------------
 
 BASE_MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"  # Base model name
-AUTH_TOKEN = "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"  # Hugging Face auth token
+AUTH_TOKEN = os.getenv("HF_READ_TOKEN")  # Hugging Face auth token
 
 # Paths
-QUESTIONS_PATH = "Backend/Utils/scientific_questions.txt"
-ADAPTER_PATH = "Backend/Code/Finetune/Reward_model/strategies/dpo_adapter"
-DATASET_PATH = "Backend/Code/Finetune/Reward_model/strategies/preference_data.json"
+QUESTIONS_PATH = "Utils/scientific_questions.txt"
+ADAPTER_PATH = "Code/Train/RewardModel/DPO/dpo_adapter"
+DATASET_PATH = "Code/Train/RewardModel/DPO/preference_data.json"
 OFFLOAD_FOLDER = "offload_folder"  # For CPU offloading
 
 # DPO Hyperparameters - Memory-optimized settings
@@ -166,7 +166,7 @@ def load_model_and_tokenizer():
     
     # Create quantization config with CPU offloading enabled
     bnb_config = BitsAndBytesConfig(
-        load_in_8bit=True,
+        load_in_4bit=True,
         llm_int8_enable_fp32_cpu_offload=True,  # Enable CPU offloading
         llm_int8_skip_modules=["lm_head"],      # Skip modules from quantization
         llm_int8_threshold=6.0,
@@ -559,7 +559,7 @@ class DPOTrainer:
 # 6. Evaluation
 # -------------------------------
 
-def evaluate_model(model, tokenizer, questions, max_new_tokens=150):
+def evaluate_model(model, tokenizer, questions, max_new_tokens=300):
     """Evaluate the model with memory optimizations."""
     model.eval()
     results = {}
