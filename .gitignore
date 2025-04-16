@@ -92,3 +92,6 @@ pip/autocomplete.py
 Thumbs.db
 my_env/
 
+.env.local
+.env.*.local
+

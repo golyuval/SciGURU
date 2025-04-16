@@ -77,3 +77,33 @@ correctness_metric = GEval(
     ],
     evaluation_params=[LLMTestCaseParams.EXPECTED_OUTPUT, LLMTestCaseParams.ACTUAL_OUTPUT],
 )
+
+# Metaphor Metric
+metaphor_metric = GEval(
+    name="Metaphor",
+    evaluation_steps=[
+        "1. Check if the explanation uses metaphors to make complex concepts more understandable.",
+        "2. Return a score of 10 if metaphors are used effectively, 5 if used moderately, and 0 if not used.",
+    ],
+    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT],
+)
+
+# Humor Metric
+humor_metric = GEval(
+    name="Humor",
+    evaluation_steps=[
+        "1. Check if the explanation uses humor to make the content more engaging.",
+        "2. Return a score of 10 if humor is used effectively, 5 if used moderately, and 0 if not used.",
+    ],
+    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT],
+)
+
+# Analogy Metric
+analogy_metric = GEval(
+    name="Analogy",
+    evaluation_steps=[
+        "1. Check if the explanation uses analogies to explain complex concepts.",
+        "2. Return a score of 10 if analogies are used effectively, 5 if used moderately, and 0 if not used.",
+    ],
+    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT],
+)

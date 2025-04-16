@@ -3,9 +3,12 @@ import pandas as pd
 from deepeval.test_case import LLMTestCase
 from tqdm import tqdm
 
-from .metrics.explanation_quality import explanation_type_metric
-from .metrics.content_analysis import content_units_metric, connection_to_everyday_life_metric
-from .metrics.correctness import correctness_metric
+from .explanation_quality import (
+    explanation_type_metric,
+    correctness_metric,
+    content_units_metric,
+    connection_to_everyday_life_metric
+)
 
 class GEvaluator:
     def __init__(self, metrics: Optional[List] = None):
