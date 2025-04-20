@@ -17,7 +17,7 @@ if not api_key:
 # Set the API key in the environment
 os.environ["OPENAI_API_KEY"] = api_key
 
-from Backend.Code.Finetune.Reward_model.strategies.eval.g_eval import (
+from Backend.Code.Eval.g_eval import (
     internal_coherence_metric,
     completeness_metric,
     alternatives_metric,
