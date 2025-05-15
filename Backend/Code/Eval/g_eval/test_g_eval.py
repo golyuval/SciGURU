@@ -4,8 +4,10 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from deepeval.test_case import LLMTestCase
 
-# Add the parent directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add the project root directory to the Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, '../../../../'))
+sys.path.append(project_root)
 
 # Load environment variables
 load_dotenv()
@@ -17,12 +19,15 @@ if not api_key:
 # Set the API key in the environment
 os.environ["OPENAI_API_KEY"] = api_key
 
-from Backend.Code.Eval.g_eval import (
-    internal_coherence_metric,
-    completeness_metric,
-    alternatives_metric,
-    articulation_metric,
-    perceived_truth_metric,
+# Import metrics from their respective modules
+from Backend.Code.Eval.g_eval.zemla_metrics import (
+    internal_coherence_metric_explicit,
+    completeness_metric_explicit,
+    alternatives_metric_explicit,
+    articulation_metric_explicit,
+    perceived_truth_metric_explicit
+)
+from Backend.Code.Eval.g_eval.explanation_quality import (
     explanation_type_metric,
     correctness_metric,
     metaphor_metric,
@@ -75,11 +80,11 @@ def test_g_eval_metrics():
             # Test Zemla metrics
             print("\nZemla Metrics:")
             metrics = [
-                ("Internal Coherence", internal_coherence_metric),
-                ("Completeness", completeness_metric),
-                ("Alternatives", alternatives_metric),
-                ("Articulation", articulation_metric),
-                ("Perceived Truth", perceived_truth_metric)
+                ("Internal Coherence", internal_coherence_metric_explicit),
+                ("Completeness", completeness_metric_explicit),
+                ("Alternatives", alternatives_metric_explicit),
+                ("Articulation", articulation_metric_explicit),
+                ("Perceived Truth", perceived_truth_metric_explicit)
             ]
             
             for metric_name, metric in metrics:
