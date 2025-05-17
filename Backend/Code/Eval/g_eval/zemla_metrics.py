@@ -42,7 +42,16 @@ articulation_metric_explicit = GEval(
         "4. Do not take any other factors into account when giving a grade - correctness or accuracy should not affect the grade."
     ],
     evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
+)
 
+audience_awareness_metric_explicit = GEval(
+    name="Audience Awareness Explicit",
+    evaluation_steps=[
+        "1. Determine whether the explanation is appropriate for a general audience with basic scientific knowledge (high school level).",
+        "2. Score between 0 and 10: 10 means it explains well to a non-expert; 0 means it uses overly technical or inaccessible language.",
+        "3. Ignore whether the content is factually correct—focus only on clarity and appropriateness of explanation level."
+    ],
+    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
 )
 
 perceived_truth_metric_explicit = GEval(
@@ -55,34 +64,44 @@ perceived_truth_metric_explicit = GEval(
     evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT]
 )
 
-internal_coherence_metric = GEval(
-    name="Internal Coherence",
-    criteria="The parts of this explanation fit together coherently.",
-    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
-)
-
-completeness_metric = GEval(
-    name="Completeness",
-    criteria="There are no gaps in this explanation (actual output) for the given input question.",
-    evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT]
-)
 
 
-alternatives_metric = GEval(
-    name="Lack of Alternatives",
-    criteria="There probably aren't many other reasonable alternative explanations to the actual output for this input question.",
-    evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT]
-)
+# Deprecated
 
-articulation_metric = GEval(
-    name="Articulation",
-    criteria="Regardless of accuracy, this explanation is well articulated.",
-    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
-)
+# internal_coherence_metric = GEval(
+#     name="Internal Coherence",
+#     criteria="The parts of this explanation fit together coherently.",
+#     evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
+# )
 
-perceived_truth_metric = GEval(
-    name="Perceived Truth",
-    criteria="You believe this explanation to be true.",
-    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
-)
+# completeness_metric = GEval(
+#     name="Completeness",
+#     criteria="There are no gaps in this explanation (actual output) for the given input question.",
+#     evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT]
+# )
+
+
+# alternatives_metric = GEval(
+#     name="Lack of Alternatives",
+#     criteria="There probably aren't many other reasonable alternative explanations to the actual output for this input question.",
+#     evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT]
+# )
+
+# articulation_metric = GEval(
+#     name="Articulation",
+#     criteria="Regardless of accuracy, this explanation is well articulated.",
+#     evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
+# )
+
+# audience_awareness_metric = GEval(
+#     name="Audience Awareness",
+#     criteria="The explanation is appropriate for a general audience with basic scientific knowledge (high school level).",
+#     evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
+# )
+
+# perceived_truth_metric = GEval(
+#     name="Perceived Truth",
+#     criteria="You believe this explanation to be true.",
+#     evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
+# )
 

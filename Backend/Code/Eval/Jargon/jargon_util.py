@@ -78,7 +78,7 @@ def sanitize_words(text: str) -> list[str]:
 def calculate_score(sanitized_words_amount: int, frequency: dict[WordFrequency, int]) -> float:
     score = frequency[WordFrequency.MID_FREQUENCY] * 0.5 + frequency[WordFrequency.COMMON] * 1
     score *= 1 / sanitized_words_amount
-    return 1 - score  # Reverse the score so higher means more jargon
+    return score  # Reverse the score so higher means more jargon
 
 
 def print_colored_words(words, frequencies):
@@ -120,9 +120,9 @@ def analyze_text(text: str, words: dict[str, int], names: list[str], verbose=Tru
 
 
 def calculate_grade(text: str):
-    names = pd.read_csv(BASE_PATH + "names.csv", header=None)[0].tolist()
+    names = pd.read_csv(os.path.join(BASE_PATH, "names.csv"), header=None)[0].tolist()
     # WORDS = "2024DataUKUS2020-2023.csv"
     WORDS = "DataUKUS2018-2021.csv"
-    words = pd.read_csv(BASE_PATH + WORDS, header=None).set_index(0)[1].to_dict()
+    words = pd.read_csv(os.path.join(BASE_PATH, WORDS), header=None).set_index(0)[1].to_dict()
     return analyze_text(text, words, names)
 
