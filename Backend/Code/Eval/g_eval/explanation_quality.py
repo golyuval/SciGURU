@@ -23,7 +23,7 @@ explanation_type_metric = GEval(
         {
             "score": 5,
             "type": "Elucidating",
-            "description": "A definition with an example/nonexample.",
+            "description": "A definition with an example.",
             "example": "Antibiotics only work on bacteria, which means that they can only be used for diseases caused by microbes belonging to the bacteria family."
         },
         {
@@ -59,8 +59,7 @@ content_units_metric = GEval(
 connection_to_everyday_life_metric = GEval(
     name="Connection to everyday life",
     evaluation_steps=[
-        """1.Check the output contains an explicit connection to common knowledge, a previous event, or a news
-story that was not already embedded in the question.""",
+        """1.Check the output contains an explicit connection to common knowledge, a previous event, or a news story that was not already embedded in the question.""",
         "2. Return a score of 10 if the above holds, and a score of 0 otherwise."
     ],
     evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT]
