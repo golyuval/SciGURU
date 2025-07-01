@@ -60,10 +60,11 @@ def add_answer_grades(answers_df: pd.DataFrame):
 
 def main():
     random_sample = [3898, 8916, 2136, 6061, 7766]
-    answers = answer_generator_from_csv("/Users/mattan.yeroushalmi/studies/thesis/Benchmarking/deep_eval/DPO_data/llama3_18B_ask_science_answers.csv", random_sample)
+    # Use relative path or make configurable
+    answers = answer_generator_from_csv("llama3_18B_ask_science_answers.csv", random_sample)
     answers = add_answer_grades(answers)
 
-    answers.to_csv("/Users/mattan.yeroushalmi/studies/thesis/Benchmarking/deep_eval/Jargon/llama3_18B_ask_science_jargon_index.csv")
+    answers.to_csv("llama3_18B_ask_science_jargon_index.csv")
 
 
 
