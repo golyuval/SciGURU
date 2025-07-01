@@ -17,6 +17,8 @@ $w.onReady(async () => {
 // Update the header when the user logs in
 authentication.onLogin(async () => {
   await update_header();
+  wixLocation.to("/our-models");
+
 });
 
 authentication.onLogout(async () => {

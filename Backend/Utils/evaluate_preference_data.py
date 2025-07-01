@@ -56,7 +56,7 @@ except ImportError as e:
 
 # Try importing our reward model
 try:
-    from Backend.Code.Train.RewardModel.tiered_reward_model import TieredRewardModel
+    from Backend.Code.Train.PPO.RewardModel.tiered_reward_model import TieredRewardModel
     logger.info("Successfully imported TieredRewardModel")
 except ImportError as e:
     logger.error(f"Failed to import TieredRewardModel: {e}")
