@@ -1,4 +1,4 @@
-# SciGURU Backend 🚀
+# SciGURU Backend 
 
 **Modular training, fine-tuning and evaluation pipeline for generating high-quality scientific explanations with Large Language Models (LLMs).**
 
