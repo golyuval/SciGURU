@@ -1,228 +1,183 @@
-# Scientific Explanation Pipeline
+# SciGURU Backend 🚀
 
-This project implements a pipeline for fine-tuning and evaluating LLMs to generate better scientific explanations. The pipeline uses Direct Preference Optimization (DPO) for fine-tuning and G-Eval for comprehensive evaluation of the model's responses.
+**Modular training, fine-tuning and evaluation pipeline for generating high-quality scientific explanations with Large Language Models (LLMs).**
 
-## Pipeline Overview
 
-The pipeline consists of the following main components:
+<details>
+<summary><strong>Table of Contents</strong></summary>
 
-pip install -r requirements.txt
+- [Project Overview](#project-overview)
+- [Backend Directory Structure](#backend-directory-structure)
+- [Pipeline Components](#pipeline-components)
+- [Tools & Dependencies](#tools--dependencies)
+- [Environment Setup](#environment-setup)
+- [Running the Pipeline](#running-the-pipeline)
+- [SLURM (HPC) Guide](#slurm-hpc-guide)
+- [Output Files](#output-files)
+- [Configuration](#configuration)
+- [Credits](#credits)
 
-1. **Model Loading and Preparation**
-   - Loads the base LLM (default: Llama-3-8b)
-   - Prepares the tokenizer and model configuration
-   - Sets up necessary padding tokens
+</details>
 
-2. **Training Data Preparation**
-   - Loads training data from `training_data.json`
-   - Formats data for DPO training
-   - Creates a dataset with prompts, chosen responses, and rejected responses
 
-3. **Model Fine-tuning**
-   - Implements DPO training
-   - Uses Hugging Face's Trainer class
-   - Configures training arguments for optimal performance
 
-4. **Response Generation**
-   - Generates responses for scientific questions
-   - Uses temperature sampling for diverse outputs
-   - Handles tokenization and decoding
+---
+</br>
 
-5. **G-Eval Evaluation**
-   - Implements comprehensive evaluation using multiple metrics:
-     - Zemla Metrics (internal coherence, completeness, alternatives, articulation, perceived truth)
-     - Explanation Quality Metrics (explanation type, correctness, metaphor, content units, connection to everyday life, humor, analogy)
-     - Readability Metrics (Flesch-Kincaid, Flesch Reading Ease, Dale-Chall, ARI)
-     - Jargon Metric
+## Project Overview
 
-6. **Report Generation**
-   - Creates detailed evaluation reports
-   - Generates summary statistics
-   - Saves results in JSON format
+The backend orchestrates every research step required to transform raw scientific questions into **concise, audience-aware answers** and automatically evaluate their pedagogical quality.
+
+```mermaid
+flowchart TD
+    A[Data Collection] --> B[SFT / PPO / DPO Training]
+    B --> C[Model Artifacts]
+    C --> D[G-Eval & Custom Metrics]
+    D --> E[JSON Reports & Dashboards]
+```
+
+---
+</br>
+
+## Backend Directory Structure
+
+```text
+Backend/
+├── Code/
+│   ├── Eval/               # Evaluation metrics & tests
+│   │   ├── g_eval/         # G-Eval implementation (Zemla, quality metrics)
+│   │   └── Jargon/         # Custom jargon metric
+│   └── Train/
+│       ├── SFT/            # Supervised fine-tuning
+│       ├── PPO/            # Policy-gradient optimisation
+│       ├── DPO/            # Direct Preference Optimisation
+│       └── RLVR/           # Reward-learning via RL-based value ranking
+│
+├── Utils/                  # Helper scripts (data extraction, evaluation)
+├── Scripts/                # SLURM jobs & environment bootstrap
+├── Log/                    # Cluster log outputs
+└── ReadMe.md               # ← this file
+```
+
+---
+</br>
+
+## Pipeline Components
+
+1. **Model Loading & Preparation**  
+   Loads base LLMs (default ⟶ Llama-3 8B) with 4-bit/8-bit quantisation, sets padding & LoRA adapters.
+
+2. **Training Data Preparation**  
+   Converts `training_data.json` into DPO triplets (prompt, chosen, rejected).
+
+3. **Fine-Tuning**  
+   - **SFT** → supervised initialisation.  
+   - **PPO** → policy improvement with reward model.  
+   - **DPO** → memory-efficient preference optimisation.
+
+4. **Response Generation**  
+   Batched inference for scientific Q&A datasets.
+
+5. **Evaluation**  
+   Comprehensive **G-Eval** suite:
+   - *Zemla metrics* (coherence, completeness, etc.)
+   - *Explanation Quality* (analogy, audience connection, etc.)
+   - *Jargon metric* (lexical accessibility)
+   
+6. **Reporting**  
+   Produces `evaluation_report.json` per answer + summary statistics.
+
+---
+</br>
+
+## Tools & Dependencies
+
+| Category | Stack |
+| -------- | ----- |
+|  ML / DL | PyTorch, Transformers, PEFT, BitsAndBytes |
+|  Training | datasets, tqdm, numpy, psutil |
+|  Evaluation | deepeval, pandas, colorama |
+|  Ops | python-dotenv, bash, SLURM |
+
+Install all dependencies via:
+
+```bash
+pip install -r Backend/requirements.txt
+```
+
+---
+</br>
 
 ## Environment Setup
 
-1. Create a `.env` file in the project root with the following structure:
 ```bash
-# OpenAI API Key
-OPENAI_API_KEY=your_openai_api_key
+# 1 – Clone repository
+$ git clone https://github.com/golyuval/SciGURU.git && cd SciGURU
 
-# Hugging Face Tokens
+# 2 – Create & activate clean virtualenv
+$ ./Backend/Scripts/reset_env.sh      # builds ./my_env & installs core deps
+$ source my_env/bin/activate
+
+# 3 – Additional dependencies (optional)
+$ pip install transformers torch bitsandbytes peft datasets
+
+# 4 – Configure secrets (.env)
+OPENAI_API_KEY=your_openai_api_key
 HF_READ_TOKEN=your_hf_read_token
 HF_WRITE_TOKEN=your_hf_write_token
 ```
 
-2. Install additional dependencies:
+---
+</br>
+
+## Running the Pipeline
+
+### Quick G-Eval smoke test
+
 ```bash
-pip install python-dotenv
+python Backend/Code/Eval/g_eval/test_g_eval.py
 ```
 
-3. Ensure all other dependencies are installed:
+### Fine-tune with DPO (CPU/GPU)
+
 ```bash
-pip install transformers datasets torch pandas tqdm
+python Backend/Code/Train/DPO/train_model.py \
+  --epochs 2 --batch_size 1 --beta 0.1
 ```
 
-4. The environment variables will be automatically loaded when running the pipeline.
+### Evaluate preference data
 
-## Usage
-
-1. Ensure all dependencies are installed:
-   ```bash
-   pip install transformers datasets torch pandas tqdm
-   ```
-
-2. Set up the OpenAI API key in the environment:
-   ```python
-   OPENAI_API_KEY = "your-api-key"
-   os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-   ```
-
-3. Run the pipeline:
-   ```bash
-   python run.py
-   ```
-
-## Output Files
-
-The pipeline generates two main output files:
-
-1. `evaluation_report.json`: Contains detailed evaluation results for each response
-2. `evaluation_summary.json`: Provides summary statistics for each metric
-
-## G-Eval Implementation
-
-G-Eval uses an outer LLM (GPT) to evaluate responses based on specific criteria:
-
-1. **Evaluation Process**:
-   - Takes a response to evaluate
-   - Provides specific evaluation criteria and steps
-   - Uses GPT to analyze the response
-   - Returns a score and explanation
-
-2. **Metrics Implementation**:
-   - Each metric is implemented as a separate class
-   - Metrics use LLMTestCase for standardized evaluation
-   - Results include both scores and explanations
-
-3. **Error Handling**:
-   - Gracefully handles evaluation failures
-   - Provides detailed error messages
-   - Continues evaluation even if some metrics fail
-
-## Training Data Format
-
-The training data should be in JSON format with the following structure:
-```json
-[
-    {
-        "prompt": "scientific question",
-        "chosen": "preferred response",
-        "rejected": "less preferred response"
-    }
-]
+```bash
+python Backend/Utils/evaluate_preference_data.py \
+  --input Backend/Utils/preference_data.json
 ```
 
-## Configuration
+---
+</br>
 
-Key configuration parameters can be adjusted in the `ScientificExplanationPipeline` class:
+## SLURM (HPC) Guide
 
-- Model name and size
-- Training parameters (epochs, batch size, learning rate)
-- Generation parameters (max length, temperature)
-- Evaluation metrics
+The `Backend/Scripts/Train` folder includes ready-to-run `sbatch` files.
 
-## Dependencies
+```bash
+sbatch Scripts/Train/load_data.sbatch   # download datasets to SFT/datasets
+sbatch Scripts/Train/SFT.sbatch         # run SFT on RTX 4090 partition
+sbatch Scripts/Train/SFT_.sbatch        # run SFT on RTX 3090 partition
+```
 
-- transformers
-- datasets
-- torch
-- pandas
-- tqdm
-- OpenAI API
-- Custom metrics from g_eval, readability_metrics, and Jargon packages
+Logs are streamed to `Backend/Log/Cluster/<job_id>.out`.
 
-# Developers Guide ( SLURM )
 
+---
 </br>
 
 
-## Clone SciGURU repository
 
-### 1 - Enter root directory
+## Credits
 
-- via MobaXtrem - open terminal
-- via SSH session </br>
-
-    ```bash
-    ssh <username>:slurm.bgu.ac.il
-    <password>
-    ```
-
-### 2 - Clone repository
-```bash
-git clone https://github.com/golyuval/SciGURU
-username : golyuval
-password : <repository access token>
-```
-
-</br>
-
---- 
+- **Research Lead :** Professor Nir Grinberg  
+- **Research Associate :** Mattan Yeroushalmi  
+- **Research Assistants :** Yuval Goldstein, Evyatar Kopans, Peleg Ben Barak
 
 
-
-## Reset Environment
-
-
-
-### 1 - Enter SciGURU directory
-```bash
-cd SciGURU/
-```
-
-### 2 - Install packages
-```bash
-./Backend/Scripts/reset_env.sh
-```
-
-### 3 - Activate my_env (if not activated)
-```bash
-conda activate my_env
-```
-
-### 4 - Save critical tokens
-```bash
-export HF_READ_TOKEN=<hugging_face_read_token>
-export HF_WRITE_TOKEN=<hugging_face_write_token>
-```
-
---- 
-
-
-
-## Run Scripts
-
-
-### 1 - Enter backend directory
-```bash
-cd SciGURU/Backend/
-```
-
-### 2 - Run Scripts
-
-**Load Data** - task for loading data from hugging face into **Code/Train/SFT/datasets**
-```bash
-sbatch Scripts/Train/load_data.sbatch
-```
-
-**SFT** - task for performing SFT training (rtx_4090) ---> save model to **Versions** 
-```bash
-sbatch Scripts/Train/SFT.sbatch
-```
-
-**SFT_** - same task as SFT (rtx_3090) 
-```bash
-sbatch Scripts/Train/SFT_.sbatch
-```
-</br>
 

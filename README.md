@@ -20,5 +20,14 @@
 
 ---
 
+## Credits
+
+- **Research Lead:** Professor Nir Grinberg
+- **Research Associate:** Mattan Yeroushalmi
+- **Research Assistants:**
+  - Yuval Goldstein
+  - Evyatar Kopans
+  - Peleg Ben Barak
+
 
 
