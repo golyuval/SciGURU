@@ -1,0 +1,657 @@
+// backend/asyncBot.jsw
+
+// \n\n #User Instruction : DO NOT DELETE THE COMMENTS NOR THE STRUCTURE
+
+import wixData from 'wix-data';
+import { fetch } from 'wix-fetch';
+import wixSecretsBackend from 'wix-secrets-backend';
+
+const BOT_TASKS_COLLECTION = "BotTasks";
+const HF_API_TIMEOUT = 90000;
+const MAX_API_RETRIES = 2; // try up to 3 times - sometimes the cold start takes a few minutes to come up
+const RETRY_DELAY_MS = 120000; // 2 munute
+
+// --------- Get Cluster Settings -------------------------------------------------------------------
+
+async function get_settings(model) {
+   
+    try {
+        const url = await wixSecretsBackend.getSecret(model);
+        const token = await wixSecretsBackend.getSecret("TOKEN_huggingface");
+
+        if (!url || !token) { throw new Error("Missing API credentials."); }
+        return { url: url, token: token };
+    } 
+    catch (error) {
+        console.error("Backend : Error retrieving secrets:", error); 
+        throw new Error("Failed to retrieve backend secrets."); 
+    }
+}
+
+// --------- Wait Function -------------------------------------------------------------------
+
+function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+// --------- Determine Model Type -------------------------------------------------------------------
+
+function isPhiModel(model) {
+    // Check if the model is a Phi-3 variant
+    return model && (
+        model.includes('phi') || 
+        model.includes('Phi') || 
+        model.includes('PHI')
+    );
+}
+
+// --------- Check if RLVR Model -------------------------------------------------------------------
+
+function isRLVRModel(model) {
+    // Check if the model is the RLVR model (delta)
+    return model && (
+        model.includes('delta') || 
+        model.includes('Delta') || 
+        model.includes('RLVR') ||
+        model.includes('rlvr')
+    );
+}
+
+// --------- Check if Gamma/SciGuru Model -------------------------------------------------------------------
+
+function isGammaModel(model) {
+    // Check if the model is the Gamma/SciGuru model (PPO)
+    return model && model.includes('gamma');
+}
+
+// --------- Check if Standard SciGuru Models (zero, alpha, beta) -------------------------------------------------------------------
+
+function isStandardSciGuruModel(model) {
+    // Check if the model is a standard SciGuru model (zero, alpha, beta)
+    return model && (
+        model.includes('zero') || 
+        model.includes('alpha') || 
+        model.includes('beta')
+    );
+}
+
+// --------- Format Message for Different Models -------------------------------------------------------------------
+
+function formatMessageForModel(message, model) {
+    if (isPhiModel(model)) {
+        // Phi-3 format: <|user|> message <|end|><|assistant|>
+        return `<|user|> ${message} <|end|><|assistant|>`;
+    } else {
+        // Standard format for other models
+        return message;
+    }
+}
+
+// --------- Call HuggingFace API ------------------------------------------------------------
+
+async function callAndParseHfApi(apiUrl, apiSecret, message, model, taskId = null) {
+    
+    // ------------ mock response -------------------------------------
+    
+    if (message === "mock") {
+        
+        console.log("Mock mode active: returning fake response");
+        // Mimic a slight delay to simulate a network call, if desired.
+        await wait(100);
+        
+        // Return proper markdown text for testing
+        const mockResponse = `# Mock Response
+
+**Mode active**: returning fake *response*
+
+Here's a test of different markdown elements:
+
+## Features Working
+- **Bold text** works
+- *Italic text* works  
+- \`inline code\` works
+
+## Multiple Paragraphs
+
+This is paragraph 1.
+
+This is paragraph 2 after double newline.
+
+### Subheading Test
+Testing nested headings and formatting.`;
+        
+        console.log("Mocked response:", mockResponse);
+        return mockResponse;
+    }
+    
+    // ------------ Format message based on model type -------------------------------------
+    
+    console.log(`AsyncBackend: Processing message for model: ${model}`);
+    console.log(`AsyncBackend: Is Phi model: ${isPhiModel(model)}`);
+    console.log(`AsyncBackend: Is RLVR model: ${isRLVRModel(model)}`);
+    console.log(`AsyncBackend: Is Gamma model: ${isGammaModel(model)}`);
+    console.log(`AsyncBackend: Is Standard SciGuru model: ${isStandardSciGuruModel(model)}`);
+    
+    // ------------ Build request based on model type -------------------------------------
+
+    let requestBody;
+    
+    if (isRLVRModel(model)) {
+        // RLVR model expects a specific format
+        requestBody = { 
+            inputs: message,  // The RLVR handler expects the question directly
+            parameters: {
+                temperature: 0.7,
+                max_new_tokens: 1000,
+                top_p: 0.9
+            }
+        };
+        console.log("AsyncBackend: Using RLVR request format");
+    } else if (isGammaModel(model)) {
+        // Gamma/SciGuru model expects inputs and parameters
+        requestBody = { 
+            inputs: message,  // Direct question without special formatting
+            parameters: {
+                temperature: 0.7,
+                max_new_tokens: 1000,
+                top_p: 0.9,
+                do_sample: true
+            }
+        };
+        console.log("AsyncBackend: Using Gamma/SciGuru request format");
+    } else if (isStandardSciGuruModel(model)) {
+        // Standard SciGuru models (zero, alpha, beta) - simple format
+        requestBody = { 
+            inputs: message,
+            parameters: {
+                max_new_tokens: 1000,
+                temperature: 0.7,
+                top_p: 0.9,
+                do_sample: true
+            }
+        };
+        console.log("AsyncBackend: Using Standard SciGuru request format");
+    } else if (isPhiModel(model)) {
+        // Phi-3 models use Chat Completion API format with messages array
+        requestBody = { 
+            messages: [
+                {
+                    role: "user",
+                    content: message
+                }
+            ],
+            max_tokens: 1000,
+            temperature: 0.7
+        };
+        console.log("AsyncBackend: Using Phi-3 Chat Completion format");
+    } else {
+        // Standard format for other models
+        const formattedMessage = formatMessageForModel(message, model);
+        requestBody = { 
+            inputs: formattedMessage, 
+            parameters: {"max_new_tokens": 1000} 
+        };
+        console.log("AsyncBackend: Using standard request format");
+    }
+    
+    console.log("AsyncBackend: Request body:", JSON.stringify(requestBody, null, 2));
+    
+    const requestOptions = { 
+        method: "POST", 
+        headers: { 
+            "Accept": "application/json", 
+            "Authorization": `Bearer ${apiSecret}`,
+            "Content-Type": "application/json" 
+        }, 
+        body: JSON.stringify(requestBody), 
+        timeout: HF_API_TIMEOUT 
+    };
+    
+    let lastError = null;
+    let hasShownInitializing = false;
+
+    for (let attempt = 1; attempt <= MAX_API_RETRIES + 1; attempt++) {
+        console.log(`AsyncBackend: Calling fetch (Attempt ${attempt}/${MAX_API_RETRIES + 1}) to ${apiUrl}`);
+        try {
+            
+            const response = await fetchWithTimeout(apiUrl, requestOptions, HF_API_TIMEOUT);
+            console.log(`AsyncBackend: Received response status (Attempt ${attempt}): ${response.status}`);
+            
+            if (response.ok) {
+                
+                const rawText = await response.text();
+                console.log("AsyncBackend: Received raw text:", rawText.substring(0, 200) + "...");
+                
+                try { 
+                    
+                    console.log("AsyncBackend: Starting response parsing...");
+                    
+                    if (isRLVRModel(model)) {
+                        console.log("AsyncBackend: Using RLVR parsing logic");
+                        // RLVR model returns an array with objects containing question, full_response, answer, formatted_answer
+                        try {
+                            const jsonResponse = JSON.parse(rawText);
+                            console.log("AsyncBackend: Parsed RLVR JSON response:", jsonResponse);
+                            
+                            // RLVR returns an array of results
+                            if (Array.isArray(jsonResponse) && jsonResponse.length > 0) {
+                                const result = jsonResponse[0]; // Get first result
+                                
+                                // Check if we have the full_response field
+                                if (result.full_response) {
+                                    console.log("AsyncBackend: Extracted RLVR full_response:", result.full_response.substring(0, 100) + "...");
+                                    return result.full_response;
+                                }
+                                // Fallback to formatted_answer if no full_response
+                                else if (result.formatted_answer) {
+                                    console.log("AsyncBackend: Using RLVR formatted_answer:", result.formatted_answer);
+                                    return result.formatted_answer;
+                                }
+                                // Last fallback to answer field
+                                else if (result.answer !== null && result.answer !== undefined) {
+                                    console.log("AsyncBackend: Using RLVR answer:", result.answer);
+                                    return `The answer is: ${result.answer}`;
+                                }
+                                else {
+                                    console.warn("AsyncBackend: RLVR response missing expected fields:", result);
+                                    return "Sorry, I couldn't generate a proper response.";
+                                }
+                            } else {
+                                console.warn("AsyncBackend: Unexpected RLVR response format:", jsonResponse);
+                                return rawText.trim();
+                            }
+                        } catch (jsonError) {
+                            console.warn("AsyncBackend: Failed to parse RLVR response as JSON:", jsonError);
+                            return rawText.trim();
+                        }
+                        
+                    } else if (isGammaModel(model)) {
+                        console.log("AsyncBackend: Using Gamma/SciGuru parsing logic");
+                        // Gamma/SciGuru model returns array with objects containing question and explanation
+                        try {
+                            const jsonResponse = JSON.parse(rawText);
+                            console.log("AsyncBackend: Parsed Gamma JSON response:", jsonResponse);
+                            
+                            // Check if it's an array response (as per handler.py)
+                            if (Array.isArray(jsonResponse) && jsonResponse.length > 0) {
+                                const result = jsonResponse[0]; // Get first result
+                                
+                                // Check for explanation field
+                                if (result.explanation) {
+                                    console.log("AsyncBackend: Extracted Gamma explanation:", result.explanation.substring(0, 100) + "...");
+                                    return result.explanation;
+                                }
+                                // Check for explanations field (multiple responses)
+                                else if (result.explanations && Array.isArray(result.explanations) && result.explanations.length > 0) {
+                                    console.log("AsyncBackend: Using first of multiple Gamma explanations");
+                                    return result.explanations[0];
+                                }
+                                // Check for error field
+                                else if (result.error) {
+                                    console.error("AsyncBackend: Gamma model returned error:", result.error);
+                                    return `Error: ${result.error}`;
+                                }
+                                else {
+                                    console.warn("AsyncBackend: Gamma response missing expected fields:", result);
+                                    return "Sorry, I couldn't generate a proper explanation.";
+                                }
+                            } 
+                            // Handle single object response (not in array)
+                            else if (jsonResponse.explanation) {
+                                console.log("AsyncBackend: Extracted Gamma explanation (non-array response)");
+                                return jsonResponse.explanation;
+                            }
+                            // Fallback for different response formats
+                            else if (Array.isArray(jsonResponse) && jsonResponse[0] && jsonResponse[0].generated_text) {
+                                console.log("AsyncBackend: Using generated_text fallback for Gamma");
+                                return jsonResponse[0].generated_text;
+                            }
+                            else {
+                                console.warn("AsyncBackend: Unexpected Gamma response format:", jsonResponse);
+                                return rawText.trim();
+                            }
+                        } catch (jsonError) {
+                            console.warn("AsyncBackend: Failed to parse Gamma response as JSON:", jsonError);
+                            // Try the standard regex fallback
+                            const regex = /"generated_text"\s*:\s*"((?:\\"|[^"])*)"/;
+                            const match = rawText.match(regex);
+                            if (match && match[1]) {
+                                const jsonString = '"' + match[1] + '"';
+                                const extractedText = JSON.parse(jsonString);
+                                console.log("AsyncBackend: Fallback regex parsed text for Gamma");
+                                return extractedText;
+                            }
+                            return rawText.trim();
+                        }
+                        
+                    } else if (isStandardSciGuruModel(model)) {
+                        console.log("AsyncBackend: Using Standard SciGuru parsing logic");
+                        // Standard SciGuru models (zero, alpha, beta) return simple array format
+                        try {
+                            const jsonResponse = JSON.parse(rawText);
+                            console.log("AsyncBackend: Parsed Standard SciGuru JSON response:", jsonResponse);
+                            
+                            // Check if it's an array with generated_text
+                            if (Array.isArray(jsonResponse) && jsonResponse.length > 0 && jsonResponse[0].generated_text) {
+                                const generatedText = jsonResponse[0].generated_text;
+                                console.log("AsyncBackend: Extracted generated_text:", generatedText.substring(0, 100) + "...");
+                                return generatedText;
+                            }
+                            // Direct generated_text in object
+                            else if (jsonResponse.generated_text) {
+                                console.log("AsyncBackend: Extracted direct generated_text");
+                                return jsonResponse.generated_text;
+                            }
+                            // If it's a string response, return it
+                            else if (typeof jsonResponse === 'string') {
+                                console.log("AsyncBackend: Response is already a string");
+                                return jsonResponse;
+                            }
+                            else {
+                                console.warn("AsyncBackend: Unexpected Standard SciGuru response format:", jsonResponse);
+                                return rawText.trim();
+                            }
+                        } catch (jsonError) {
+                            console.warn("AsyncBackend: Failed to parse Standard SciGuru response as JSON:", jsonError);
+                            // Try the standard regex fallback
+                            const regex = /"generated_text"\s*:\s*"((?:\\"|[^"])*)"/;
+                            const match = rawText.match(regex);
+                            if (match && match[1]) {
+                                const jsonString = '"' + match[1] + '"';
+                                const extractedText = JSON.parse(jsonString);
+                                console.log("AsyncBackend: Fallback regex parsed text for Standard SciGuru");
+                                return extractedText;
+                            }
+                            return rawText.trim();
+                        }
+                        
+                    } else if (isPhiModel(model)) {
+                        console.log("AsyncBackend: Using Phi-3 Chat Completion parsing logic");
+                        // Phi-3 models return Chat Completion format
+                        try {
+                            const jsonResponse = JSON.parse(rawText);
+                            console.log("AsyncBackend: Parsed JSON response:", jsonResponse);
+                            
+                            // Chat Completion format: {choices: [{message: {content: "..."}}]}
+                            if (jsonResponse.choices && jsonResponse.choices[0] && jsonResponse.choices[0].message && jsonResponse.choices[0].message.content) {
+                                const content = jsonResponse.choices[0].message.content;
+                                console.log("AsyncBackend: Extracted Chat Completion content:", content);
+                                return content;
+                            }
+                            // Alternative format: {choices: [{text: "..."}]}
+                            else if (jsonResponse.choices && jsonResponse.choices[0] && jsonResponse.choices[0].text) {
+                                const content = jsonResponse.choices[0].text;
+                                console.log("AsyncBackend: Extracted alternative content:", content);
+                                return content;
+                            }
+                            // Direct generated_text format (fallback)
+                            else if (Array.isArray(jsonResponse) && jsonResponse[0] && jsonResponse[0].generated_text) {
+                                const content = jsonResponse[0].generated_text;
+                                console.log("AsyncBackend: Extracted generated_text:", content);
+                                return content;
+                            }
+                            else {
+                                console.warn("AsyncBackend: Unexpected Phi-3 response format:", jsonResponse);
+                                return rawText.trim();
+                            }
+                        } catch (jsonError) {
+                            console.warn("AsyncBackend: Failed to parse Phi-3 response as JSON:", jsonError);
+                            return rawText.trim();
+                        }
+                        
+                    } else {
+                        console.log("AsyncBackend: Using standard parsing logic");
+                        // Standard SciGuru/other models parsing
+                        const regex = /"generated_text"\s*:\s*"((?:\\"|[^"])*)"/;
+                        const match = rawText.match(regex);
+                        if (match && match[1]) { 
+                            const jsonString = '"' + match[1] + '"'; 
+                            const extractedText = JSON.parse(jsonString); 
+                            console.log("AsyncBackend: Manually parsed text:", extractedText?.substring(0, 100) + "..."); 
+                            return extractedText; 
+                        }
+                        
+                        else { 
+                            if (rawText.includes('"generated_text": null')) 
+                                return null; 
+                            console.warn("AsyncBackend: Regex pattern not found."); 
+                            lastError = new Error("Failed to parse API response structure."); 
+                            continue; 
+                        }
+                    }
+                    
+                } catch (parseError) { 
+                    
+                    console.error("AsyncBackend: Error during text parsing:", parseError); 
+                    lastError = new Error("Failed to parse API response text."); 
+                    continue; 
+                }
+            } else if (response.status === 503 && attempt <= MAX_API_RETRIES) {
+                console.warn(`AsyncBackend: API returned 503 (Attempt ${attempt}). Model is being initialized...`); 
+                lastError = new Error(`Model initialization in progress (503).`); 
+                
+                // Update task status to show initialization message
+                if (taskId && !hasShownInitializing) {
+                    try {
+                        const task = await wixData.get(BOT_TASKS_COLLECTION, taskId);
+                        if (task) {
+                            task.initializingModel = true;
+                            task.showInitializing = true; // Flag to ensure we show initializing stage
+                            await wixData.update(BOT_TASKS_COLLECTION, task);
+                            console.log(`AsyncBackend: Updated task ${taskId} with initializingModel flag`);
+                            hasShownInitializing = true;
+                            
+                            // Give frontend time to show initializing message
+                            await wait(1000);
+                        }
+                    } catch (e) {
+                        console.warn("Failed to update initialization status:", e);
+                    }
+                }
+                
+                await wait(RETRY_DELAY_MS); continue;
+
+            } else { /* ... handle non-retryable errors ... */
+                 let errorDetails = `HTTP error! Status: ${response.status}`; 
+                 try { 
+                    const errorText = await response.text(); 
+                    errorDetails += `, Body: ${errorText.substring(0, 500)}`; 
+                } 
+                 catch (e) { 
+                    errorDetails += ` (Could not read error body)`; 
+                } 
+
+                 console.error("AsyncBackend: API call failed.", errorDetails); 
+                 throw new Error(`API request failed with status ${response.status}.`);
+            }
+        } catch (fetchError) { /* ... handle fetch errors with retry ... */
+             console.error(`AsyncBackend: Fetch error (Attempt ${attempt}):`, fetchError); lastError = fetchError; if (attempt <= MAX_API_RETRIES) { console.warn(`Retrying after fetch error...`); await wait(RETRY_DELAY_MS); continue; }
+             else { throw lastError || new Error("Network error during API call."); }
+        }
+    }
+    console.error(`AsyncBackend: API call failed after all attempts.`); throw lastError || new Error("API request failed after multiple retries.");
+}
+
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+  
+    try {
+      const resp = await fetch(url, { ...options, signal: controller.signal });
+      return resp;
+    } finally {
+      clearTimeout(id);
+    }
+  }
+
+// --------- Process task in background -------------------------------------------------------------------
+
+/**
+ * Performs the actual API call and updates the task status.
+ * Intended to be called without 'await' (fire-and-forget).
+ * @param {string} taskId
+ */
+async function _processTaskInBackground(taskId) {
+    console.log(`AsyncBackend: [_processTaskInBackground] Starting for Task ID: ${taskId}`);
+    let taskToUpdate; // To hold the task object for final update
+    let finalStatus = "error";
+    let resultData = null;
+    let errorMsg = "Processing did not complete.";
+    let isFirstRequest = true; // Track if this is the first request
+
+    try {
+        // Get the latest task data (especially the userInput)
+        taskToUpdate = await wixData.get(BOT_TASKS_COLLECTION, taskId);
+        if (!taskToUpdate) {
+            console.error(`AsyncBackend: [_processTaskInBackground] Task ${taskId} not found for processing.`);
+            return; // Exit if task disappeared somehow
+        }
+        if (taskToUpdate.status !== 'running') {
+             console.warn(`AsyncBackend: [_processTaskInBackground] Task ${taskId} status is no longer 'running' (${taskToUpdate.status}). Aborting processing.`);
+             return; // Avoid reprocessing if status changed unexpectedly
+        }
+        
+        // Check if this model has been used before (simple check - you might want to use a more persistent method)
+        const { url, token } = await get_settings(taskToUpdate.model);
+        
+        // First, try a quick health check to see if model is already up
+        try {
+            const healthCheckOptions = {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ inputs: "test", parameters: { max_new_tokens: 1 } }),
+                timeout: 5000 // Quick 5 second timeout for health check
+            };
+            
+            const healthResponse = await fetchWithTimeout(url, healthCheckOptions, 5000);
+            if (healthResponse.ok) {
+                console.log("AsyncBackend: Model is already initialized and ready");
+                isFirstRequest = false;
+            } else if (healthResponse.status === 503) {
+                console.log("AsyncBackend: Model needs initialization (503 on health check)");
+                isFirstRequest = true;
+                // Set the initialization flag immediately
+                taskToUpdate.showInitializing = true;
+                await wixData.update(BOT_TASKS_COLLECTION, taskToUpdate);
+            }
+        } catch (e) {
+            console.log("AsyncBackend: Health check failed, assuming first request:", e.message);
+            isFirstRequest = true;
+        }
+
+        // Perform the actual work
+        const hfResult = await callAndParseHfApi(url, token, taskToUpdate.userInput, taskToUpdate.model, taskId);
+
+        // Determine final status based on result
+        if (hfResult) {
+             finalStatus = "complete"; resultData = hfResult; errorMsg = null;
+             console.log(`AsyncBackend: [_processTaskInBackground] Task ${taskId} processing successful.`);
+        } else if (hfResult === null) {
+             finalStatus = "error"; errorMsg = "The AI model could not generate text for this input.";
+             console.warn(`AsyncBackend: [_processTaskInBackground] Task ${taskId} processing resulted in null response.`);
+        } else {
+             finalStatus = "error"; errorMsg = "The AI model returned empty text.";
+             console.warn(`AsyncBackend: [_processTaskInBackground] Task ${taskId} processing resulted in empty string.`);
+        }
+    } catch (processingError) {
+        console.error(`AsyncBackend: [_processTaskInBackground] Error during task ${taskId} processing:`, processingError);
+        finalStatus = "error";
+        errorMsg = processingError.message || "An unknown processing error occurred.";
+        resultData = null;
+    } finally {
+        // --- Update the Database ---
+        // Ensure we have the task object before trying to update
+        if (taskToUpdate) {
+            taskToUpdate.status = finalStatus;
+            taskToUpdate.resultText = resultData;
+            taskToUpdate.errorMessage = errorMsg;
+            try {
+                await wixData.update(BOT_TASKS_COLLECTION, taskToUpdate);
+                console.log(`AsyncBackend: [_processTaskInBackground] Task ${taskId} final status updated to '${finalStatus}'.`);
+            } catch (dbUpdateError) {
+                console.error(`AsyncBackend: [_processTaskInBackground] CRITICAL: Failed to update final status for task ${taskId}:`, dbUpdateError);
+                // Consider adding more robust error handling here if needed (e.g., logging to external service)
+            }
+        } else {
+             console.error(`AsyncBackend: [_processTaskInBackground] CRITICAL: Cannot update task ${taskId} because task object was not retrieved.`);
+        }
+    }
+}
+
+// --------- Initiate guru request -------------------------------------------------------------------
+
+export async function initiate_guru_request(userInput, model) {
+    
+    console.log("AsyncBackend: Initiating request for:", userInput);
+    const taskData = { status: "pending", userInput: userInput, resultText: null, errorMessage: null, model: model };
+    try { const insertedItem = await wixData.insert(BOT_TASKS_COLLECTION, taskData); console.log("AsyncBackend: Task created with ID:", insertedItem._id); return insertedItem._id; }
+    catch (error) { console.error("AsyncBackend: Failed to insert task:", error); throw new Error("Failed to initiate bot request."); }
+}
+
+// --------- Get guru request status -------------------------------------------------------------------
+
+/**
+ * Checks the status of an async bot task. If 'pending', triggers background processing.
+ * @param {string} taskId - The ID of the task to check.
+ * @returns {Promise<{status: string, result?: string, error?: string}>} - Returns CURRENT status immediately.
+ */
+export async function guru_request_status(taskId) {
+    console.log("AsyncBackend: [getBotRequestStatus] Checking status for task ID:", taskId);
+    if (!taskId) { return { status: "error", error: "No Task ID provided." }; }
+   
+    try {
+        const task = await wixData.get(BOT_TASKS_COLLECTION, taskId);
+        if (!task) { return { status: "error", error: "Task not found." }; }
+
+        console.log(`AsyncBackend: [getBotRequestStatus] Task ${taskId} current status: ${task.status}`);
+
+        if (task.status === "complete") {
+            return { status: "complete", result: task.resultText };
+        }
+        if (task.status === "error") {
+            return { status: "error", error: task.errorMessage };
+        }
+        if (task.status === "running") {
+            // Check if model is being initialized
+            if (task.initializingModel) {
+                return { status: "initializing" };
+            }
+            return { status: "running" };
+        }
+
+        if (task.status === "pending") {
+            console.log(`AsyncBackend: [getBotRequestStatus] Task ${taskId} is pending. Triggering background processing...`);
+
+            // == IMPORTANT: Update status first, THEN trigger background processing ==
+            try {
+                 task.status = "running";
+                 await wixData.update(BOT_TASKS_COLLECTION, task);
+                 console.log(`AsyncBackend: [getBotRequestStatus] Task ${taskId} status updated to 'running'.`);
+
+                 // --- Call the background process function WITHOUT await ---
+                 _processTaskInBackground(taskId);
+                 // --------------------------------------------------------
+
+                 // --- Return 'running' status immediately to frontend ---
+                 return { status: "running" };
+                 // -------------------------------------------------------
+
+            } catch (dbUpdateError) {
+                 console.error(`AsyncBackend: [getBotRequestStatus] Failed to update task ${taskId} status to running:`, dbUpdateError);
+                 // Let frontend know there was an issue starting the process
+                 return { status: "error", error: "Failed to start processing task." };
+            }
+        } // End if status === "pending"
+
+        // Fallback for unexpected status
+        console.warn(`AsyncBackend: [getBotRequestStatus] Task ${taskId} had unexpected status '${task.status}'.`);
+        return { status: "error", error: `Unexpected task status: ${task.status}` };
+
+    } catch (error) {
+        console.error(`AsyncBackend: [getBotRequestStatus] Database error for task ${taskId}:`, error);
+        return { status: "error", error: "A database error occurred while checking status." };
+    }
+}
